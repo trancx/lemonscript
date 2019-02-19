@@ -1,0 +1,60 @@
+Manifest-Version: 1.0
+Class-Path: .
+Main-Class: keysimulator.ScriptFactory
+
+Name: org/jdom2/filter/
+Specification-Title: JDOM Filter Classes
+Implementation-Title: org.jdom2.filter
+Implementation-Version: 2.0.6
+Specification-Version: 2.0.0
+Specification-Vendor: jdom.org
+Implementation-Vendor: jdom.org
+
+Name: org/jdom2/adapters/
+Specification-Title: JDOM Adapter Classes
+Implementation-Title: org.jdom2.adapters
+Implementation-Version: 2.0.6
+Specification-Version: 2.0.0
+Specification-Vendor: jdom.org
+Implementation-Vendor: jdom.org
+
+Name: org/jdom2/
+Specification-Title: JDOM Classes
+Implementation-Title: org.jdom2
+Implementation-Version: 2.0.6
+Specification-Version: 2.0.0
+Specification-Vendor: jdom.org
+Implementation-Vendor: jdom.org
+
+Name: org/jdom2/input/
+Specification-Title: JDOM Input Classes
+Implementation-Title: org.jdom2.input
+Implementation-Version: 2.0.6
+Specification-Version: 2.0.0
+Specification-Vendor: jdom.org2
+Implementation-Vendor: jdom.org
+
+Name: org/jdom2/output/
+Specification-Title: JDOM Output Classes
+Implementation-Title: org.jdom2.output
+Implementation-Version: 2.0.6
+Specification-Version: 2.0.0
+Specification-Vendor: jdom.org
+Implementation-Vendor: jdom.org
+
+Name: org/jdom2/transform/
+Specification-Title: JDOM Transformation Classes
+Implementation-Title: org.jdom2.transform
+Implementation-Version: 2.0.6
+Specification-Version: 2.0.0
+Specification-Vendor: jdom.org
+Implementation-Vendor: jdom.org
+
+Name: org/jdom2/xpath/
+Specification-Title: JDOM XPath Classes
+Implementation-Title: org.jdom2.xpath
+Implementation-Version: 2.0.6
+Specification-Version: 2.0.0
+Specification-Vendor: jdom.org
+Implementation-Vendor: jdom.org
+

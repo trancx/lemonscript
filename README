@@ -1,0 +1,7 @@
+Run in test mode in Win10-64bit
+
+double-click the lescript.jar will work.
+
+DEPENDENCIES:
+
+	jdom,jintellitype,jna
