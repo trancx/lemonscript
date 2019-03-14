@@ -1,26 +1,29 @@
 package keysimulator;
 
-import java.awt.Button;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
+
 import java.awt.event.KeyEvent;
-import java.awt.event.WindowEvent;
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.InputStreamReader;
-import java.io.StringReader;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.lang.reflect.Field;
-import java.net.PasswordAuthentication;
-import java.util.ArrayList;
+import java.security.KeyStore.TrustedCertificateEntry;
+import java.util.Date;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
-import java.util.Timer;
-import java.util.TimerTask;
+import java.util.logging.FileHandler;
+import java.util.logging.Formatter;
+import java.util.logging.Level;
+import java.util.logging.LogRecord;
+import java.util.logging.Logger;
 
-
-import javax.swing.JFrame;
+import javax.management.InstanceAlreadyExistsException;
+import javax.naming.InitialContext;
+import javax.net.ssl.SSLException;
+import javax.print.attribute.standard.RequestingUserName;
 import javax.swing.JOptionPane;
-import javax.swing.JRootPane;
 
 import com.melloware.jintellitype.HotkeyListener;
 import com.melloware.jintellitype.JIntellitype;
@@ -28,16 +31,19 @@ import com.sun.jna.Library;
 import com.sun.jna.Native;
 import com.sun.jna.win32.StdCallLibrary;
 
+import ui.HomeFrame;
+
 
 
 
 public class KeySimulator {
 	public static final int CONTROL_PORT = 0x64;
 	public static final int DATA_PORT = 0x60;
+	private static String libPath;
 	
 	public static final Map<String,Integer> map= new HashMap<String,Integer>();
 	
-	static {
+	static{
 		map.put("0", KeyEvent.VK_0);
 		map.put("1", KeyEvent.VK_1);
 		map.put("2", KeyEvent.VK_2);
@@ -90,11 +96,23 @@ public class KeySimulator {
 		map.put("F9",KeyEvent.VK_F9);
 		map.put("F10",KeyEvent.VK_F10);
 		map.put("F11",KeyEvent.VK_F11);
-		map.put("F12",KeyEvent.VK_F12);	
-		map.put("��", KeyEvent.VK_UP);
-		map.put("��", KeyEvent.VK_LEFT);
-		map.put("��", KeyEvent.VK_DOWN);
-		map.put("��", KeyEvent.VK_RIGHT);
+		map.put("F12",KeyEvent.VK_F12);
+		map.put("f1",KeyEvent.VK_F1);
+		map.put("f2",KeyEvent.VK_F2);
+		map.put("f3",KeyEvent.VK_F3);
+		map.put("f4",KeyEvent.VK_F4);
+		map.put("f5",KeyEvent.VK_F5);
+		map.put("f6",KeyEvent.VK_F6);
+		map.put("f7",KeyEvent.VK_F7);
+		map.put("f8",KeyEvent.VK_F8);
+		map.put("f9",KeyEvent.VK_F9);
+		map.put("f10",KeyEvent.VK_F10);
+		map.put("f11",KeyEvent.VK_F11);
+		map.put("f12",KeyEvent.VK_F12);
+		map.put("Up", KeyEvent.VK_UP);
+		map.put("Left", KeyEvent.VK_LEFT);
+		map.put("Down", KeyEvent.VK_DOWN);
+		map.put("Right", KeyEvent.VK_RIGHT);
 		/**
 		 *   
 		 *  public static final int VK_LEFT = 37;
@@ -109,25 +127,37 @@ public class KeySimulator {
   			public static final int VK_DOWN = 40;
 		 */
 	}
-	//ʹ��User32�������λֵת��
+	//ʹ��User32�������λֵת��
 	public interface User32 extends StdCallLibrary {
 		@SuppressWarnings("deprecation")
 		User32 Instance = (User32)Native.loadLibrary("User32", User32.class);
 		int MapVirtualKeyA(int key, int type);
 	}
-	//�˴���winIoʹ�ùؼ�
-
-	public interface WinIo extends Library {
-		@SuppressWarnings("deprecation")
+	//�˴���winIoʹ�ùؼ�
+	public interface WinIo extends Library {	
+		@SuppressWarnings("deprecation")	
 		WinIo Instance = ( WinIo )Native.loadLibrary("WinIo64", WinIo.class);		
 		boolean InitializeWinIo();
 		boolean GetPortVal(int portAddr, int pPortVal, int size);
 		boolean SetPortVal(int portAddr, int portVal, int size) ;
 		void ShutdownWinIo();
 	}
-	//�������λֵת��ɨ����
+	
+	
+//	public interface GetPath extends Library {
+//		@SuppressWarnings("deprecation")
+//		GetPath Instance = (GetPath)Native.loadLibrary("lib\\GetPath", GetPath.class);
+//		void printPath();
+//	}
+	
+	//�������λֵת��ɨ����
 	public static int toScanCode(String key) {
 		try {
+			Object o = map.get(key);
+			if( o == null ) {
+				JOptionPane.showMessageDialog(null, "Wrong key: " + key, "ERROR", JOptionPane.ERROR_MESSAGE);
+				HomeFrame.fatalError();
+			}
 			return User32.Instance.MapVirtualKeyA(map.get(key).intValue(),0);
 		} catch (Exception e) {
 			System.out.println("toScanCode exception; key: " + key);
@@ -135,7 +165,7 @@ public class KeySimulator {
 		}
 	}
 	
-	
+
 	public static void KBCWait4IBE() throws Exception {
 		int val=0;
 		do {
@@ -153,21 +183,33 @@ public class KeySimulator {
 			Thread.sleep(10);
 			/**
 			 * it's significant, but i don't know why
-			 * but it does works! ˯��10s���Ի���ѹ��
+			 * but it does works!
 			 */
-			
-			if( !WinIo.Instance.GetPortVal(CONTROL_PORT,val, 1)) {
+			if( !WinIo.Instance.GetPortVal(CONTROL_PORT,val, 1) ) {
 				System.err.println("Cannot get the Port");
 			}
 //			System.out.println("port busy");
 		} while (( 0x2 & val )>0);
-		
+		// input buffer is full, so we're hanging
 	}
 	
+	
+	/**
+	 * @return: true is on, false is off
+	 */
+	public static boolean checkInterrupt() throws Exception {
+		int val = 0;
+		KBCWait4IBE();
+		WinIo.Instance.SetPortVal(CONTROL_PORT, 0x20, 1);
+		WinIo.Instance.GetPortVal(DATA_PORT, val, 1);
+		if(  (val & 0x1) == 1 )
+			return true;
+		return false;
+	}
+		
 	/**
 	 *  0xD2 means the data sent to the DATA_PORT(0x60) will be
 	 *  put in OUT_PUT_REGISTER
-	 *  
 	 * 
 	 */
 	private static void KeyDown(int key) throws Exception {
@@ -200,399 +242,219 @@ public class KeySimulator {
 		}
 	}
 	
-	
-	/**
-	 * @return: true is on, false is off
-	 */
-	public static boolean checkInterrupt() throws Exception {
-		int val = 0;
-		KBCWait4IBE();
-		WinIo.Instance.SetPortVal(CONTROL_PORT, 0x20, 1);
-		WinIo.Instance.GetPortVal(DATA_PORT, val, 1);
-		if(  (val & 0x1) == 1 )
-			return true;
-		return false;
-	}
-	public static MyFrame frame;
-	
-	public static void whenClosing() {
-		JIntellitype.getInstance().unregisterHotKey(1);
-//		JIntellitype.getInstance().unregisterHotKey(2);
-	}
-	public static void main(String[] args) throws Exception { 
-		SkillsManager sm = new SkillsManager();
-		Automation machine = new Automation(sm);
-		//Skill stab = new Skill("Stab-1", "111", 0, 3, 620);
-		Skill stab2 = new Skill("Stab-2", "ad", 0, 3, 0);
-//		Skill vortex = new Skill("Vortex-2", "3222", 0, 2, 1000);
-//		Skill doublespear = new Skill("DoubleSpear-3", "2111", 0, 1, 700);
-//		Skill ironpatient = new Skill("IronPatient", "44", 8000, 7, 900);
-//		Skill firespear = new Skill("FireSpear", "v", 20000, 19, 0);
-//		Skill swapjoin = new Skill("Swapjoin", "r", 4000, 15, 80);
-//		Skill redlotus = new Skill("RedLotus", "55", 15000, 11, 1600);
-//		
-		//stab.setEffect(1);
-		//stab2.setEffect(1);
-//		doublespear.setEffect(1);
-//		vortex.setEffect(1);
-//		ironpatient.setTriggerState(3);
-//		ironpatient.setEffect(-3);
+	public static boolean initialize() throws SecurityException, IOException {
 		
-		//sm.addSkill(stab);
-		sm.addSkill(stab2);
-//		sm.addSkill(doublespear);
-//		sm.addSkill(vortex);
-//		sm.addSkill(ironpatient);
-//		sm.addSkill(firespear);
-//		sm.addSkill(swapjoin);
-//		sm.addSkill(redlotus);
-		
-		
-//		Skill dianjiang = new Skill("DianJiang", "r", 800, 6, 80);
-//		Skill chuZhan = new Skill("ChuZhan", "q", 6000, 7, 700);
-//		Skill caiYi = new Skill("CaiYi", "5", 10000, 8, 700);
-////		
-//		sm.addSkill(dianjiang);
-//		sm.addSkill(chuZhan);
-//		sm.addSkill(caiYi);
-
-		MyFrame myFrame = null;
-		myFrame = new MyFrame();
-		frame = myFrame;
-//		myFrame.setVisible(true);
-		
-		JIntellitype.getInstance().registerHotKey(1, 0, KeyEvent.VK_BACK_QUOTE);
-//		JIntellitype.getInstance().registerHotKey(2,JIntellitype.MOD_ALT, KeyEvent.VK_TAB);
-		JIntellitype.getInstance().addHotKeyListener(new HotkeyListener() {
-			public void onHotKey(int identifier) {
-				System.out.println("pressed!");
-				switch (identifier) {
-				case 1:
-					// do something
-					frame.switchState();
-//					System.out.println("got");
-					break;
-				case 2:
-					frame.switchOff();
-					break;
-				}
-			}
-		});
-		System.out.println("hello!");
-		File dir  = new File("");
-		String pwd = dir.getCanonicalPath();
-		System.out.println(pwd);
 		try {
-			 Process process = Runtime.getRuntime().exec("keyboard.exe");
-			 BufferedReader br = new BufferedReader(new InputStreamReader(process.getInputStream()));
-			 Thread.sleep(1000);
-			 System.out.println(br.read());
-		} catch( final Exception e) {
-			myFrame.printError("Error when execute keyboard.exe!");
-			System.exit(-1);
-		}
-		if( WinIo.Instance.InitializeWinIo() ) {
-//			Thread.sleep(1000);
-			
-			machine.start();
-			myFrame.setVisible(true);
-			
-//			while(true) {
-//				stab.act();
-//				vortex.act();
-//				doublespear.act();
-//			}
-		} else {
-			myFrame.printError("Cannot initialize the WinIO!");
-			System.exit(-1);
-		}
-		System.out.println("exit");
-	}
-}
-
-class Skill extends TimerTask implements Comparable<Skill> {
-	private final String key; /* ms */
-	private final int cd;  /* ms */
-	private String name = "default";
-	private int priority; /* In general, short cd has low priot  */
-	private int delay; /* time(ms) spent on this skill*/
-	private boolean ready;
-	private int triggerstate = 0;
-	private int effect = 0;
-	public final static int TAP_DELAY = 350; 
-	
-	public int getDelay() {
-		return delay;
-	}
-
-	public int getEffect() {
-		return effect;
-	}
-
-	public void setEffect(int effect) {
-		this.effect = effect;
-	}
-
-	public int getTriggerState() {
-		return triggerstate;
-	}
-
-	public void setTriggerState(int triggerstate) {
-		this.triggerstate = triggerstate;
-	}
-
-	public boolean isReady() {
-		return ready;
-	}
-	
-	public void setReady() {
-		ready = true;
-	}
-	
-	@Override
-	// default  negative -> positive
-	public int compareTo(Skill s) {
-		// TODO Auto-generated method stub
-		if( priority > s.getPriority() )
-			return -1;
-		return 1;
-	}
-
-	@Override
-	public void run() {
-		// when the cd is OK
-		setReady();
-//		System.out.println(this + " ready");
-	}
-
-	public void act()  throws Exception {
-		for (int i = 0; i < key.length(); i++) {
-			KeySimulator.keyDown(""+ key.charAt(i));
-			Thread.sleep(50); /* FIXME:  may be we can delete it*/
-			KeySimulator.keyUp(""+ key.charAt(i));
-			Thread.sleep(400+i*65);  /* +i*65 */
-//			Thread.sleep(100); 
-		}
-//		System.out.println(this + " executed");
-		if( delay > 10 )
-			Thread.sleep(delay);
-	}
-	
-	Skill( String key, int cd ) {
-		this.key = key;
-		this.cd = cd;
-	}
-	
-	Skill( String name, String key, int cd, int priority, int latency) {
-		this(key, cd);
-		this.priority = priority;
-		ready = true;
-		this.name = name;
-		this.delay = latency;
-	}
-	@Override
-	public String toString() {
-		return name;
-	}
-
-	public void setPriority(int priority) {
-		this.priority = priority;
-	}
-	
-	public int getPriority() {
-		return priority;
-	}
-
-	public void setName( String name ) {
-		this.name = name;
-	}
-	public int getCd() { return cd; }
-	
-	public int getRealCd() {
-		return (cd - key.length()*TAP_DELAY - delay);
-	}
-	
-	public void reset() {
-		 Field field; 
-		 try { 
-			 field = TimerTask.class.getDeclaredField("state");
-			 field.setAccessible(true); 
-			 field.set(this, 0);
-		} catch (NoSuchFieldException e) {
-			e.printStackTrace(); 
-		} catch (Exception e) { 
-			e.printStackTrace(); 
-		}
-		 ready = false;
-	}
-
-}
-
-class SkillsManager {
-	private int state = 0;
-	public final static int MAX_STATE = 3;
-	
-	public void debug() {
-		int i;
-		for( Skill s : skills) {
-			i = s.getDelay() / (s.getPriority() * 11) >> s.getPriority();
-			System.out.println(s + "'s level is " + i  );
-		}
-	}
-	
-
-	public Skill getReadySkills() {
-		Skill best = null;
-		ready.clear();
-		while( ready.isEmpty() ) {
-			for( Skill skill : skills) {
-				if( skill.isReady() && state >= skill.getTriggerState()) {
-					ready.add(skill);
-				}
-			}
-		}
-		ready.sort(null);
-		best = ready.get(0);
-//		System.out.println(best + " selected PRI: " + best.getPriority());
-		return best;
-	}
-	
-	public void addSkill( Skill s) {
-		skills.add(s);
-	}
-	
-	/**
-	 * FIXME: should be more portable
-	 * let the skill(task) to determine 
-	 * whether it should be reinserted to
-	 * the timer_queue 
-	 * 
-	 * e.g. Skill.resume(tasktimer)
-	 * would be okay!
-	 * 
-	 */
-	public void finish( Skill s) {
-		if( s.getCd() > 0 ) {	
-			s.reset();
-			tasktimer.schedule(s, s.getRealCd());
-		} 
-		if( s.getEffect() != 0 ) {	
-			state += s.getEffect();
-			if( state > MAX_STATE)
-				state = MAX_STATE;
-		}
-		// change the priority by its priority! FIXME: just for blood_river
-		for( Skill skill : skills) {
-			if( s.getCd() < 4000 ) {
-				if( skill != s)
-					skill.setPriority(skill.getPriority() + 2);
-			}
-		}
-		
-		if( ready.remove(s) == false ) {
-			System.err.println("remove a task not in the list!!");
-		}
-	}
-	
-	SkillsManager() {
-		
-	}
-	
-	private Timer tasktimer = new Timer();
-	private ArrayList<Skill> ready = new ArrayList<Skill>();
-	private ArrayList<Skill> skills = new ArrayList<Skill>();
-}
-
-class Automation extends Thread {
-	public static int state = 0; /**/
-	private SkillsManager sm;
-	public final static int AUTOMATION_RUNNING = 1;
-	public final static int AUTOMATION_SLEEPING = 0;
-	 
-	public Automation( SkillsManager sm) {
-		// TODO Auto-generated constructor stub
-		this.sm = sm;
-	}
-	
-	@Override
-	public void run() {
-		// TODO Auto-generated method stub
-		super.run();
-		try {
-			while( true ) {
-				while( state == AUTOMATION_RUNNING) {
-					Skill s = sm.getReadySkills();
-					s.act();
-					sm.finish(s);
-				}
-				Thread.sleep(200);
+			if( WinIo.Instance.InitializeWinIo() ) {
+				BugLogger.getInstance().log(Level.CONFIG, "WinIo init successfully!");
+				return true;	
 			}
 		} catch(Exception e) {
+			// weird situation
 			e.printStackTrace();
-		}	
+			BugLogger.getInstance().log(Level.SEVERE, e.getMessage());
+			return false;
+		} catch (Throwable e) {
+			// 这里是因为找不到dll 导致出错 对于JNA只能重启处理
+			JOptionPane.showMessageDialog(null, "检测到缺少运行库，将安装后退出，请重新运行，如果反复提示该信息，请联系开发者", "注意", JOptionPane.WARNING_MESSAGE);
+			String jarPath = "lib/WinIo64.dll";
+			libPath = getLibPath();
+			BugLogger.getInstance().info("libpath: " + getLibPath());
+			String target = libPath + "\\WinIo64.dll";
+			System.out.println("target: " + target);
+			try {
+				fromJarToFs(jarPath, target);
+				BugLogger.getInstance().info("dll path locates at " + target);
+				target = libPath + "\\WinIo64.sys";
+				jarPath = "lib/WinIo64.sys";
+				fromJarToFs(jarPath, target);
+				BugLogger.getInstance().info("driver path locates at "+ target);		
+			} catch (IOException e1) {
+				// TODO Auto-generated catch block
+				e1.printStackTrace();
+				JOptionPane.showMessageDialog(null, e1.getMessage(), "error", JOptionPane.ERROR_MESSAGE);
+				BugLogger.getInstance().info(e1.getMessage());
+				System.exit(-1);
+			}
+			// FIXME: how to make it? tell the user to restart 
+			System.exit(0);
+		}
+		
+		// 回到这里说明driver 路径出错 
+		// 这里有个bug 如果之前 dll已经存在路径 那么就会有问题
+		BugLogger.getInstance().log(Level.WARNING, "dll found, but cannot find the driver");
+		BugLogger.getInstance().log(Level.WARNING, "libpath: " + getLibPath());
+		try {
+			if( WinIo.Instance.InitializeWinIo() )
+				return true;	
+			String jarPath = "lib/WinIo64.sys";
+			String target = System.getProperty("java.home") + "\\bin\\WinIo64.sys";
+			fromJarToFs(jarPath, target);
+			BugLogger.getInstance().info("driver path locates at "+ target);
+			if( WinIo.Instance.InitializeWinIo() )
+				return true;
+		} catch (Throwable e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			System.err.println("cannot initialize WinIo ");
+			System.exit(-1);
+			
+		}
+		System.out.println("KeySimulator initialized error");	
+		return false;
+	}
+
+	public static void shutdown() {
+		WinIo.Instance.ShutdownWinIo();
+	}
+	
+	
+
+	private static void fromJarToFs(String jarPath, String filePath) throws IOException {
+	      InputStream is = null;
+	      OutputStream os = null;
+	      try {
+	         File file = new File(filePath);
+	         if (file.exists()) {
+//	            boolean success = file.delete();
+//	            if (!success) {
+//	               throw new IOException("Could not delete file: " + filePath);
+//	            }
+	        	 System.out.println("File already exist");
+	        	 return;
+	         }
+
+	         is = ClassLoader.getSystemClassLoader().getResourceAsStream(jarPath);
+	         os = new FileOutputStream(filePath);
+	         byte[] buffer = new byte[8192];
+	         int bytesRead;
+	         while ((bytesRead = is.read(buffer)) != -1) {
+	            os.write(buffer, 0, bytesRead);
+	         }
+	      } catch (Exception ex ) {
+	    	  throw new IOException("FromJarToFileSystem could not load DLL: " + jarPath+"\r\n\t\t" + ex.getMessage(), ex);
+	      } finally {
+	         if (is != null) {
+	            is.close();
+	         }
+	         if (os != null) {
+	            os.close();
+	         }
+	      }
+	   }
+	
+	private static String getLibPath() {
+		String ret = null;
+		
+		
+		Map<String, String> map = System.getenv();
+		String libdir = map.get("Path");
+		
+		String [] path = libdir.split(";");
+		for( String tmp : path ) {
+			if(  (tmp.contains("Java") || tmp.contains("java") || tmp.contains("jre") ) ) {
+					ret = tmp;
+					break;
+			}
+		}
+		if( ret == null ) 
+			ret = path[0];
+
+		System.out.println("libPathSlected: " + ret);
+
+		return ret;
+	}
+	
+	private static String getJavaPath() {
+		Map<String, String> map = System.getenv();
+		String topdir =  map.get("JAVA_HOME");
+		if( topdir == null )
+			topdir = System.getProperty("java.home");
+		if( topdir == null ) {
+	//		String tmpdir = System.getProperty("java.io.tmpdir");
+	//		String libdir = System.getProperty("java.library.path");
+	//		System.out.println(libdir);
+			String libdir = map.get("Path");
+			
+			String [] path = libdir.split(";");
+			for( String tmp : path ) {
+				if(  (tmp.contains("Java") || tmp.contains("java"))
+					&& (tmp.endsWith("bin") || tmp.endsWith("bin\\"))) {
+						topdir = tmp;
+						break;
+				}
+			}
+			if( topdir != null)
+				System.out.println("topdir: " + topdir);
+			else {
+				System.out.println("topdir cannot find ENV: ");
+				for(Iterator<String> itr = map.keySet().iterator();itr.hasNext();){
+		            String key = itr.next();
+		            System.out.println(key + "=" + map.get(key));
+		        } 
+			}
+			
+		} else {
+			topdir = topdir + "\\bin";
+		}
+		
+		return topdir;
+		
 	}
 }
 
 
-class MyFrame extends JFrame {
-	/**
-	 * 
-	 */
-	private static final long serialVersionUID = 1L;
-	private Button button= null;
-   
-    public MyFrame(){
-        super();
-        setSize(100,100);
-        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-        setUndecorated(true);
-        getRootPane().setWindowDecorationStyle(JRootPane.PLAIN_DIALOG);
-        setAlwaysOnTop(true);
-        button= new Button("OFF");
-        button.setSize(100,100);
-        button.addActionListener(new ActionListener() {	
-            @Override
-            public void actionPerformed(ActionEvent e) {
-              switchState();
-            }
-        });
-        add(button);
-    }
-    public void printError(String errorMsg ) {
-    	JOptionPane.showMessageDialog(null, errorMsg, "Error", JOptionPane.ERROR_MESSAGE);
-    }
-    public void switchState() {
-    	 if( Automation.state == Automation.AUTOMATION_RUNNING ) {
-    		 switchOff();
-    	 } else {
-    		 switchOn();
-    		System.out.println("ON!");
-    	 }
-    }
-    public void switchOff() {
-    	if( Automation.state == Automation.AUTOMATION_RUNNING ) {
-    		Automation.state = Automation.AUTOMATION_SLEEPING;
-    		button.setLabel("OFF");
-    	}
-    }
-    public void switchOn() {
-    	if( Automation.state == Automation.AUTOMATION_SLEEPING ) {
-    		Automation.state = Automation.AUTOMATION_RUNNING;
-    		button.setLabel("ON");
-    	}
-    }
-    
-    @Override
-	protected void processWindowEvent(WindowEvent e) {
-		// TODO Auto-generated method stub
-		super.processWindowEvent(e);
-		if(e.getID() == WindowEvent.WINDOW_CLOSING)
-	       {
-	        	KeySimulator.whenClosing();
-	        	System.out.println("Closing");
-	        	System.exit(0);
-	        	
-	       }
+class BugLogger {
+	private static Logger logger = null;
+	private static FileHandler fileHandler;
+	
+	private BugLogger() throws SecurityException, IOException {
+		 
 	}
-
+	
+	private static void init() throws IOException {
+		logger = Logger.getLogger("LemonLogger");
+		logger.setLevel(Level.INFO);
+//		logger.setUseParentHandlers(false);
+//		String path = System.getProperty("java.io.tmpdir");
+		String path = System.getenv("APPDATA");
+		if( path == null )
+			throw new IOException("cannot get tmp path");
+		// System.out.println(System.getenv("APPDATA"));
+		path = path + "\\lemonscript\\";
+		File file = new File(path);
+		System.out.println("program configure path:  "+ path);
+		if( !file.exists() )
+			file.mkdirs();
+		// mkdirs will be wrong
+		file = new File(path +  System.currentTimeMillis() + ".log");
+		file.createNewFile();
+		fileHandler = new FileHandler(file.getAbsolutePath(), true);
+		fileHandler.setFormatter(new Formatter() {
+			@Override
+			public String format(LogRecord record) {
+				// TODO Auto-generated method stub
+				return System.currentTimeMillis() + " : " + record.getMessage() + "\r\n"   ;
+			}
+		});
+		logger.addHandler(fileHandler);
+		logger.info("now program started!");
+	}
+	
+	public static Logger getInstance()  {
+		if( logger == null ) {
+			try {
+				init();
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+				System.exit(-1);
+			}
+		}
+		return logger;
+	}
+	
 }
+
+
+
